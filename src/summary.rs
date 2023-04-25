@@ -1,4 +1,5 @@
 // src/summary.rs
+use crate::categorization::Categorization;
 use crate::data::{Task, TaskStatus};
 use chrono::{Duration, Utc};
 use std::collections::HashMap;
@@ -17,12 +18,12 @@ pub fn print_summary_with_duration(
 
     for (category, tasks) in time_period {
         if let Some(ref name) = category_name {
-            if name != category {
+            if name.to_string() != category.to_string() {
                 continue;
             }
         }
 
-        println!("Category: {}", category);
+        println!("Category: {:?}", category);
 
         let filtered_tasks: Vec<Task> = tasks
             .iter()

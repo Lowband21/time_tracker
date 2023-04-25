@@ -1,6 +1,8 @@
+use crate::categorization::Categorization;
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
+use std::error::Error;
 use std::fs::{self, File};
 use std::io::{BufReader, BufWriter};
 use std::path::PathBuf;
@@ -79,15 +81,10 @@ pub enum TaskStatus {
     Stopped,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
-pub struct Category {
-    pub name: String,
-    pub keywords: Vec<String>,
-}
-
+// Update the TimePeriod struct
 #[derive(Debug, Serialize, Deserialize)]
 pub struct TimePeriod {
-    pub tasks: HashMap<String, Vec<Task>>,
+    pub categorization: Categorization,
 }
 
 impl Task {
@@ -151,29 +148,23 @@ impl Task {
     }
 }
 
-pub fn load_data(storage_location: &PathBuf) -> TimePeriod {
-    let file = File::open(storage_location);
+pub fn load_data(path: &PathBuf) -> TimePeriod {
+    let file = File::open(path);
     match file {
         Ok(file) => {
             let reader = BufReader::new(file);
             serde_json::from_reader(reader).unwrap_or_else(|_| TimePeriod {
-                tasks: HashMap::new(),
+                categorization: Categorization::new(),
             })
         }
         Err(_) => TimePeriod {
-            tasks: HashMap::new(),
+            categorization: Categorization::new(),
         },
     }
 }
 
-pub fn save_data(storage_location: &PathBuf, time_period: &TimePeriod) -> std::io::Result<()> {
-    if !storage_location.exists() {
-        if let Some(parent) = storage_location.parent() {
-            fs::create_dir_all(parent)?;
-        }
-    }
-
-    let file = File::create(storage_location)?;
+pub fn save_data(path: &PathBuf, time_period: &TimePeriod) -> Result<(), Box<dyn Error>> {
+    let file = File::create(path)?;
     let writer = BufWriter::new(file);
     serde_json::to_writer(writer, time_period)?;
     Ok(())

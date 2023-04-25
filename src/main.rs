@@ -1,7 +1,9 @@
+mod categorization;
 mod config;
 mod data;
 mod summary;
 
+use crate::categorization::Categorization;
 use crate::config::AppConfig;
 use crate::data::{load_data, save_data, Task, TaskStatus, TimeChunk, TimePeriod};
 use crate::summary::{print_summary, print_summary_with_duration};
@@ -21,7 +23,7 @@ struct Opt {
 enum Command {
     Start {
         #[structopt(help = "Task name or description")]
-        task: String,
+        task: Vec<String>,
     },
     Stop,
     Pause,
@@ -60,6 +62,8 @@ fn main() {
     // Update function calls accordingly
     match opt.command {
         Command::Start { task } => {
+            // Join the task Vec<String> with spaces
+            let task = task.join(" ");
             start_task(&mut time_period, &task, Utc::now(), &storage_location)
         }
         Command::Stop => stop_task(&mut time_period, &storage_location),
@@ -82,19 +86,33 @@ fn start_task(
     start_time: DateTime<Utc>,
     storage_location: &PathBuf,
 ) {
-    for task in time_period.tasks.iter() {
-        println!("Key: {} Task: {:?}", task.0, task.1);
+    for task in time_period.categorization.categories.iter() {
+        println!("Key: {} Task: {:?}", task.0.to_string(), task.1);
     }
-    let tasks = time_period
-        .tasks
-        .entry("All".to_string())
-        .or_insert(Vec::new());
+    let category = categorization::Categorization::extract_category_from_description(name);
+    println!("Category: {:?}", category);
+    if time_period
+        .categorization
+        .categories
+        .contains_key(&category.0.clone())
+    {
+    } else {
+        time_period.categorization.add_category(category.0.clone());
+    }
 
-    let existing_task = tasks.iter_mut().find(|task| task.name == name);
+    let existing_task = time_period
+        .categorization
+        .categories
+        .get_key_value(&category.0)
+        .unwrap()
+        .1
+        .iter()
+        .find(|task| task.name == name);
 
     match existing_task {
         Some(task) => {
             println!("Found existing task");
+            let mut task = task.clone();
             match task.status {
                 TaskStatus::Running => {
                     println!("Task already running, no changes made.");
@@ -124,7 +142,7 @@ fn start_task(
                 paused_duration: Duration::from_secs(0),
                 status: TaskStatus::Running,
             };
-            tasks.push(new_task);
+            time_period.categorization.add_task_to_category(new_task)
         }
     }
     save_data(storage_location, &time_period).unwrap();
@@ -132,7 +150,8 @@ fn start_task(
 
 fn stop_task(time_period: &mut TimePeriod, storage_location: &PathBuf) {
     let current_task = time_period
-        .tasks
+        .categorization
+        .categories
         .values_mut()
         .flat_map(|tasks| tasks.iter_mut())
         .find(|task| task.status == TaskStatus::Running);
@@ -149,7 +168,8 @@ fn stop_task(time_period: &mut TimePeriod, storage_location: &PathBuf) {
 
 fn pause_task(time_period: &mut TimePeriod) {
     let current_task = time_period
-        .tasks
+        .categorization
+        .categories
         .values_mut()
         .flat_map(|tasks| tasks.iter_mut())
         .find(|task| task.status == TaskStatus::Running);
@@ -165,7 +185,8 @@ fn pause_task(time_period: &mut TimePeriod) {
 
 fn resume_task(time_period: &mut TimePeriod) {
     let paused_task = time_period
-        .tasks
+        .categorization
+        .categories
         .values_mut()
         .flat_map(|tasks| tasks.iter_mut())
         .find(|task| task.status == TaskStatus::Paused);
@@ -183,7 +204,7 @@ fn resume_task(time_period: &mut TimePeriod) {
 }
 
 fn clock(time_period: &mut TimePeriod) {
-    for tasks in time_period.tasks.values_mut() {
+    for tasks in time_period.categorization.categories.values_mut() {
         for task in tasks {
             if let data::TaskStatus::Running = task.status {
                 task.time_spent();
@@ -195,8 +216,8 @@ fn clock(time_period: &mut TimePeriod) {
 
 fn list_tasks(time_period: &TimePeriod) {
     println!("Listing tasks");
-    for (category, tasks) in &time_period.tasks {
-        println!("Category: {}", category);
+    for (category, tasks) in &time_period.categorization.categories {
+        println!("Category: {:?}", category);
         for task in tasks {
             println!(
                 "{} - {} - {}",
@@ -218,18 +239,18 @@ fn export_data(file_path: PathBuf) {
 }
 
 fn generate_summary(time_period: &TimePeriod, period: String) {
-    let time_period = &time_period.tasks;
+    let time_period = &time_period.categorization.categories;
     // Summary for the last day
     println!("Time spent in the last day: ");
-    print_summary_with_duration(&time_period, chrono::Duration::days(1), None);
+    print_summary_with_duration(time_period, chrono::Duration::days(1), None);
 
     // Summary for the last week
     println!("Time spent in the last week: ");
-    print_summary_with_duration(&time_period, chrono::Duration::weeks(1), None);
+    print_summary_with_duration(time_period, chrono::Duration::weeks(1), None);
 
     // Summary for the last month
     println!("Time spent in the last month: ");
-    print_summary_with_duration(&time_period, chrono::Duration::days(30), None);
+    print_summary_with_duration(time_period, chrono::Duration::days(30), None);
 }
 
 fn configure_app(storage_location: Option<PathBuf>) {
