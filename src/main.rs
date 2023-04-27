@@ -2,11 +2,13 @@ mod categorization;
 mod config;
 mod data;
 mod summary;
+mod visualization;
 
 use crate::categorization::Categorization;
 use crate::config::AppConfig;
 use crate::data::{load_data, save_data, Task, TaskStatus, TimeChunk, TimePeriod};
-use crate::summary::{print_summary, print_summary_with_duration};
+use crate::summary::print_summary_with_duration;
+use crate::visualization::visualize_data;
 use chrono::{DateTime, Utc};
 use std::path::PathBuf;
 use std::time::Duration;
@@ -28,7 +30,7 @@ enum Command {
     Stop,
     Pause,
     Resume,
-    Clock,
+    Status,
     List,
     Export {
         #[structopt(long, parse(from_os_str), help = "File path to export data")]
@@ -43,6 +45,7 @@ enum Command {
         storage_location: String,
     },
     Visualize,
+    Clear,
 }
 
 fn main() {
@@ -63,6 +66,7 @@ fn main() {
     match opt.command {
         Command::Start { task } => {
             // Join the task Vec<String> with spaces
+            println!("{:?}", task);
             let task = task.join(" ");
             start_task(&mut time_period, &task, Utc::now(), &storage_location)
         }
@@ -70,13 +74,14 @@ fn main() {
         Command::Pause => pause_task(&mut time_period),
         Command::Resume => resume_task(&mut time_period),
         Command::List => list_tasks(&mut time_period),
-        Command::Clock => clock(&mut time_period),
+        Command::Status => clock(&mut time_period),
         Command::Export { file_path } => export_data(file_path),
-        Command::Summary { period } => generate_summary(&time_period, period),
+        Command::Summary { period } => generate_summary(&time_period, period, None),
         Command::Configure { storage_location } => {
             configure_app(Some(PathBuf::from(storage_location + "tasks.json")))
         }
-        Command::Visualize => visualize_data(),
+        Command::Visualize => visualize(&time_period),
+        Command::Clear => clear(&mut time_period, &storage_location),
     }
 }
 
@@ -86,11 +91,8 @@ fn start_task(
     start_time: DateTime<Utc>,
     storage_location: &PathBuf,
 ) {
-    for task in time_period.categorization.categories.iter() {
-        println!("Key: {} Task: {:?}", task.0.to_string(), task.1);
-    }
     let category = categorization::Categorization::extract_category_from_description(name);
-    println!("Category: {:?}", category);
+    //println!("Category: {:?}", category);
     if time_period
         .categorization
         .categories
@@ -159,7 +161,7 @@ fn stop_task(time_period: &mut TimePeriod, storage_location: &PathBuf) {
     if let Some(task) = current_task {
         task.status = TaskStatus::Stopped;
         task.time_chunks.last_mut().unwrap().end_time = Some(Utc::now());
-        println!("Stopped current task: {:?}", task);
+        println!("Stopped current task: {:?}", task.name);
     } else {
         println!("No task is currently running.");
     }
@@ -177,7 +179,7 @@ fn pause_task(time_period: &mut TimePeriod) {
     if let Some(task) = current_task {
         task.status = TaskStatus::Paused;
         task.time_chunks.last_mut().unwrap().end_time = Some(Utc::now());
-        println!("Paused current task: {:?}", task);
+        println!("Paused current task: {:?}", task.name);
     } else {
         println!("No task is currently running.");
     }
@@ -197,7 +199,7 @@ fn resume_task(time_period: &mut TimePeriod) {
             start_time: Utc::now(),
             end_time: None,
         });
-        println!("Resumed task: {:?}", task);
+        println!("Resumed task: {:?}", task.name);
     } else {
         println!("No paused task found.");
     }
@@ -238,19 +240,29 @@ fn export_data(file_path: PathBuf) {
     // Implement functionality in the appropriate module
 }
 
-fn generate_summary(time_period: &TimePeriod, period: String) {
+fn generate_summary(time_period: &TimePeriod, period: String, category: Option<String>) {
     let time_period = &time_period.categorization.categories;
-    // Summary for the last day
-    println!("Time spent in the last day: ");
-    print_summary_with_duration(time_period, chrono::Duration::days(1), None);
-
-    // Summary for the last week
-    println!("Time spent in the last week: ");
-    print_summary_with_duration(time_period, chrono::Duration::weeks(1), None);
-
-    // Summary for the last month
-    println!("Time spent in the last month: ");
-    print_summary_with_duration(time_period, chrono::Duration::days(30), None);
+    match period.to_lowercase().as_str() {
+        "day" => {
+            // Summary for the last day
+            println!("Time spent in the last day: ");
+            print_summary_with_duration(time_period, chrono::Duration::days(1), category);
+        }
+        "week" => {
+            // Summary for the last week
+            println!("Time spent in the last week: ");
+            print_summary_with_duration(time_period, chrono::Duration::weeks(1), category);
+        }
+        "month" => {
+            // Summary for the last month
+            println!("Time spent in the last month: ");
+            print_summary_with_duration(time_period, chrono::Duration::days(30), category);
+        }
+        x => {
+            let period = x.parse().unwrap_or(1);
+            print_summary_with_duration(time_period, chrono::Duration::days(period), category)
+        }
+    }
 }
 
 fn configure_app(storage_location: Option<PathBuf>) {
@@ -263,7 +275,17 @@ fn configure_app(storage_location: Option<PathBuf>) {
     app_config.save().unwrap();
 }
 
-fn visualize_data() {
+fn visualize(time_period: &TimePeriod) {
     println!("Visualizing time tracking data");
-    // Implement functionality in the visualization module
+    visualize_data(
+        time_period,
+        &PathBuf::from("/home/lowband/dev/rust/time_tracker/chart.png"),
+    )
+    .unwrap();
+}
+
+fn clear(time_period: &mut TimePeriod, storage_location: &PathBuf) {
+    time_period.categorization = Categorization::new();
+    save_data(storage_location, &time_period).unwrap();
+    println!("Cleared all data");
 }

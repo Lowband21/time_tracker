@@ -1,13 +1,7 @@
 // src/summary.rs
-use crate::categorization::Categorization;
 use crate::data::{Task, TaskStatus};
 use chrono::{Duration, Utc};
 use std::collections::HashMap;
-
-pub fn print_summary(time_period: &HashMap<String, Vec<Task>>) {
-    println!("Task Summary:");
-    print_summary_with_duration(time_period, Duration::max_value(), None);
-}
 
 pub fn print_summary_with_duration(
     time_period: &HashMap<String, Vec<Task>>,
@@ -58,33 +52,16 @@ fn calculate_summary(tasks: &[Task]) -> (Duration, usize, usize, usize) {
         match task.status {
             TaskStatus::Running => {
                 running_task_count += 1;
-                total_duration = total_duration
-                    + task
-                        .time_chunks
-                        .iter()
-                        .filter_map(|chunk| chunk.end_time.map(|t| t - chunk.start_time))
-                        .fold(Duration::zero(), |acc, x| acc + x)
-                    + (Utc::now() - task.time_chunks.last().unwrap().start_time);
             }
             TaskStatus::Paused => {
                 paused_task_count += 1;
-                total_duration = total_duration
-                    + task
-                        .time_chunks
-                        .iter()
-                        .filter_map(|chunk| chunk.end_time.map(|t| t - chunk.start_time))
-                        .fold(Duration::zero(), |acc, x| acc + x);
             }
             TaskStatus::Stopped => {
                 stopped_task_count += 1;
-                total_duration = total_duration
-                    + task
-                        .time_chunks
-                        .iter()
-                        .filter_map(|chunk| chunk.end_time.map(|t| t - chunk.start_time))
-                        .fold(Duration::zero(), |acc, x| acc + x);
             }
         }
+        let task_duration = task.chrono_duration();
+        total_duration = total_duration + task_duration;
     }
 
     (

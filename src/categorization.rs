@@ -37,34 +37,24 @@ impl Categorization {
         }
     }
 
-    pub fn display_tasks(&self, category: &String) {
-        if let Some(tasks) = self.categories.get(category) {
-            for (i, task) in tasks.iter().enumerate() {
-                println!("Task {}: {}", i + 1, task.name);
-            }
-        } else {
-            println!("Category not found.");
-        }
-    }
-
     pub fn extract_category_from_description(description: &str) -> (String, String) {
         let mut category = String::from("Uncategorized");
         let mut task_description = description.to_string();
-        println!("Description(Before): {}", description.to_string());
+        //println!("Description(Before): {}", description.to_string());
 
         if let Some(hashtag_index) = description.find('#') {
-            let category_start = hashtag_index + 1;
+            let category_start = hashtag_index;
             let (before, after) = description.split_at(category_start);
             let mut after_iter = after.split_whitespace();
             if let Some(first_word) = after_iter.next() {
                 category = first_word.to_string();
-                println!("category{}", first_word.to_string());
+                //println!("Extracted category: {}", first_word.to_string());
                 task_description = format!(
                     "{}{}",
                     before.trim(),
                     after_iter.collect::<Vec<_>>().join(" ")
                 );
-                println!("Task Description: {}", task_description);
+                //println!("Task Description: {}", task_description);
             }
         }
 

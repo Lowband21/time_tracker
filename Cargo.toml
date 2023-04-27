@@ -17,3 +17,4 @@ notify = "5.0"
 plotters = "0.3"
 reqwest = "0.11"
 tokio = { version = "1", features = ["full"] }
+requestty = "0.5.0"
