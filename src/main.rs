@@ -279,7 +279,7 @@ fn visualize(time_period: &TimePeriod) {
     println!("Visualizing time tracking data");
     visualize_data(
         time_period,
-        &PathBuf::from("/home/lowband/dev/rust/time_tracker/chart.png"),
+        &PathBuf::from("/Users/lowband/dev/rust/time_tracker/chart.png"),
     )
     .unwrap();
 }
